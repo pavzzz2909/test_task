@@ -6,7 +6,6 @@ venv/
 .idea/
 .get/
 logs/
-.env
-.env*
+.env2
 
 static/

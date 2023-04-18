@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+
+  web:
+    restart: always
+    depends_on:
+      - postgres
+    build: ./web
+    command: gunicorn --access-logfile - --workers 3 --bind 0.0.0.0:8000 core.wsgi:application
+    volumes:
+      - .:/code
+      - /static:/static
+    links:
+      - postgres
+    expose:
+      - "8000"
+    env_file:
+      - .env
+
+
+  postgres:
+    restart: always
+    image: postgres:14-alpine
+    volumes:
+      - .:/docker-entrypoint-initdb.d
+      - postgres_volume:/var/lib/postgresql/data/
+      - ./sql:/sql/
+    ports:
+      - "5432:5432"
+    expose:
+      - '5432'
+    env_file:
+      - .env.base
+
+
+  nginx:
+    build: ./nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./static:/home/app/static/
+      - ./media:/home/app/media/
+    depends_on:
+      - web
+
+
+  tgbot:
+    restart: always
+    build: ./web
+    depends_on:
+      - postgres
+    command: python manage.py tgbot
+    volumes:
+      - .:/code
+    env_file:
+      - .env
+
+
+  redis:
+    image: redis:alpine
+    container_name: redis
+
+
+  celery:
+    build: ./web
+    command: celery -A core worker -l info
+    volumes:
+      - .:/code
+    depends_on:
+      - redis
+    env_file:
+      - .env
+
+
+  celery-beat:
+    build: ./web
+    command: celery -A core beat -l info
+    volumes:
+      - .:/code
+    env_file:
+      - .env
+    depends_on:
+      - redis
+
+
+volumes:
+  postgres_volume:
+  static_volume:
+  media_volume:

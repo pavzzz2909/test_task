@@ -1,0 +1,46 @@
+# в файл web/nginx.conf меняем ip
+# в файлы .env и .env.base вносим переменные (переменные которые есть в обоих файлах должны быть одинаковыми)
+
+# апдейтим, апгрейдим, создаем директорию и переходим в неё
+apt update && apt upgrade && cd .. && cd home && mkdir app && cd app
+
+# установка docker-compose и docker
+sudo curl -L "https://github.com/docker/compose/releases/download/1.26.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
+sudo apt-get remove docker docker-engine docker.io containerd runc
+sudo apt-get update
+sudo apt-get install ca-certificates curl gnupg lsb-release
+sudo mkdir -p /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+sudo apt-get update
+sudo apt-get install docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+# проверка версий docker-compose и docker
+docker-compose --version && docker --version
+
+
+# копируем файлы в папку /home/app
+
+
+chmod 774 web/entrypoint.sh
+
+# поднимаем контейнеры
+docker-compose up -d --build web
+
+# поднимаем оставшиеся контейнеры
+docker-compose up -d --build
+
+# проводим миграции
+docker-compose exec web python manage.py makemigrations
+docker-compose exec web python manage.py migrate
+docker-compose exec web python manage.py collectstatic
+
+docker-compose exec web python manage.py loaddata backup/telegram.json
+
+# создаем суперпользователя
+docker-compose exec web python manage.py createsuperuser
